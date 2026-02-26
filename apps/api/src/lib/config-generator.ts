@@ -1,0 +1,198 @@
+import type {
+  AgentConfig,
+  BindingConfig,
+  OpenClawConfig,
+  SlackAccountConfig,
+} from "@nexu/shared";
+import { openclawConfigSchema } from "@nexu/shared";
+import { eq, sql } from "drizzle-orm";
+import type { Database } from "../db/index.js";
+import {
+  botChannels,
+  bots,
+  channelCredentials,
+  gatewayPools,
+} from "../db/schema/index.js";
+import { decrypt } from "./crypto.js";
+
+interface ChannelCredentialRow {
+  credentialType: string;
+  encryptedValue: string;
+}
+
+interface ChannelWithBot {
+  channelId: string;
+  botId: string;
+  channelType: string;
+  accountId: string;
+  status: string | null;
+  botSlug: string;
+  botName: string;
+  botModelId: string | null;
+  credentials: ChannelCredentialRow[];
+}
+
+export async function generatePoolConfig(
+  db: Database,
+  poolIdOrName: string,
+  gatewayToken?: string,
+): Promise<OpenClawConfig> {
+  // Try lookup by id first, fall back to poolName
+  const [poolById] = await db
+    .select()
+    .from(gatewayPools)
+    .where(eq(gatewayPools.id, poolIdOrName));
+  const pool =
+    poolById ??
+    (
+      await db
+        .select()
+        .from(gatewayPools)
+        .where(eq(gatewayPools.poolName, poolIdOrName))
+    )[0];
+
+  if (!pool) {
+    throw new Error(`Pool ${poolIdOrName} not found`);
+  }
+
+  const poolId = pool.id;
+
+  const poolBots = await db.select().from(bots).where(eq(bots.poolId, poolId));
+
+  const activeBots = poolBots.filter((b) => b.status === "active");
+
+  const channelsWithBots: ChannelWithBot[] = [];
+
+  for (const bot of activeBots) {
+    const channels = await db
+      .select()
+      .from(botChannels)
+      .where(eq(botChannels.botId, bot.id));
+
+    const connectedChannels = channels.filter(
+      (ch) => ch.status === "connected",
+    );
+
+    for (const channel of connectedChannels) {
+      const creds = await db
+        .select({
+          credentialType: channelCredentials.credentialType,
+          encryptedValue: channelCredentials.encryptedValue,
+        })
+        .from(channelCredentials)
+        .where(eq(channelCredentials.botChannelId, channel.id));
+
+      channelsWithBots.push({
+        channelId: channel.id,
+        botId: bot.id,
+        channelType: channel.channelType,
+        accountId: channel.accountId,
+        status: channel.status,
+        botSlug: bot.slug,
+        botName: bot.name,
+        botModelId: bot.modelId,
+        credentials: creds,
+      });
+    }
+  }
+
+  const agentList: AgentConfig[] = activeBots.map((bot, index) => {
+    const agent: AgentConfig = {
+      id: bot.slug,
+      name: bot.name,
+    };
+
+    if (index === 0) {
+      agent.default = true;
+    }
+
+    if (bot.modelId) {
+      agent.model = { primary: bot.modelId };
+    }
+
+    return agent;
+  });
+
+  const slackAccounts: Record<string, SlackAccountConfig> = {};
+  const bindingsList: BindingConfig[] = [];
+
+  for (const ch of channelsWithBots) {
+    if (ch.channelType === "slack") {
+      const credMap = new Map<string, string>();
+      for (const cred of ch.credentials) {
+        try {
+          credMap.set(cred.credentialType, decrypt(cred.encryptedValue));
+        } catch {
+          credMap.set(cred.credentialType, "");
+        }
+      }
+
+      const botToken = credMap.get("botToken") ?? "";
+      const signingSecret = credMap.get("signingSecret") ?? "";
+
+      slackAccounts[ch.accountId] = {
+        enabled: true,
+        botToken,
+        signingSecret,
+        mode: "http",
+        webhookPath: `/slack/events/${ch.accountId}`,
+        // OpenClaw Slack plugin's isConfigured requires appToken even in HTTP mode.
+        // Provide a placeholder so the account passes the configured check.
+        appToken: "xapp-placeholder-not-used-in-http-mode",
+      };
+
+      bindingsList.push({
+        agentId: ch.botSlug,
+        match: {
+          channel: "slack",
+          accountId: ch.accountId,
+        },
+      });
+    }
+  }
+
+  const config: OpenClawConfig = {
+    gateway: {
+      port: 18789,
+      mode: "local",
+      bind: "loopback",
+      auth: {
+        mode: "token",
+        token: gatewayToken ?? process.env.GATEWAY_TOKEN ?? "gw-secret-token",
+      },
+      reload: { mode: "hybrid" },
+    },
+    agents: {
+      defaults: {
+        model: {
+          // Use the first bot's model or a sensible default
+          primary: activeBots[0]?.modelId ?? "anthropic/claude-3.7-sonnet",
+        },
+      },
+      list: agentList,
+    },
+    channels: {},
+    bindings: bindingsList,
+  };
+
+  if (Object.keys(slackAccounts).length > 0) {
+    // Top-level signingSecret + mode required by OpenClaw gateway validation
+    const firstAccount = Object.values(slackAccounts)[0];
+    config.channels.slack = {
+      mode: "http",
+      signingSecret: firstAccount?.signingSecret ?? "",
+      enabled: true,
+      accounts: slackAccounts,
+    };
+  }
+
+  const validated = openclawConfigSchema.parse(config);
+
+  // Increment config version for this pool
+  await db
+    .update(gatewayPools)
+    .set({ configVersion: sql`${gatewayPools.configVersion} + 1` })
+    .where(eq(gatewayPools.id, poolId));
+
+  return validated;
+}
