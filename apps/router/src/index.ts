@@ -20,11 +20,12 @@ export default {
       });
     }
 
-    // Main app routes
+    // Main app routes + its static assets
     if (
       url.pathname.startsWith("/workspace") ||
       url.pathname.startsWith("/auth") ||
-      url.pathname.startsWith("/invite")
+      url.pathname.startsWith("/invite") ||
+      url.pathname.startsWith("/assets/")
     ) {
       return env.APP.fetch(request);
     }
