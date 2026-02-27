@@ -1,5 +1,6 @@
 import { bootstrapGateway } from "./bootstrap.js";
 import {
+  runDiscordSessionSyncLoop,
   runGatewayHealthLoops,
   runHeartbeatLoop,
   runPollLoop,
@@ -14,6 +15,7 @@ async function main(): Promise<void> {
 
   runGatewayHealthLoops(state);
   void runHeartbeatLoop(state);
+  void runDiscordSessionSyncLoop();
   await runPollLoop(state);
 }
 

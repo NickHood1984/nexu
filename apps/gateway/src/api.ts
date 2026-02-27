@@ -57,3 +57,10 @@ export async function sendHeartbeat(state: RuntimeState): Promise<void> {
     body: JSON.stringify(input),
   });
 }
+
+export async function syncDiscordSessions(): Promise<void> {
+  await fetchJson("/api/internal/sessions/sync-discord", {
+    method: "POST",
+    body: JSON.stringify({ poolId: env.RUNTIME_POOL_ID }),
+  });
+}

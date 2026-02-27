@@ -9,7 +9,13 @@ import {
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { bots, sessions } from "../db/schema/index.js";
+import {
+  botChannels,
+  bots,
+  channelCredentials,
+  sessions,
+} from "../db/schema/index.js";
+import { decrypt } from "../lib/crypto.js";
 
 import type { AppBindings } from "../types.js";
 
@@ -133,6 +139,7 @@ export function registerSessionInternalRoutes(app: OpenAPIHono<AppBindings>) {
       .onConflictDoUpdate({
         target: sessions.sessionKey,
         set: {
+          botId: input.botId,
           title: input.title,
           ...(input.channelType !== undefined && {
             channelType: input.channelType,
@@ -210,6 +217,119 @@ export function registerSessionInternalRoutes(app: OpenAPIHono<AppBindings>) {
     }
 
     return c.json(formatSession(updated), 200);
+  });
+
+  // POST /api/internal/sessions/sync-discord — Sync Discord sessions via Discord REST API
+  app.post("/api/internal/sessions/sync-discord", async (c) => {
+    const body = (await c.req.json()) as { poolId?: string };
+    const poolId = body.poolId;
+    if (!poolId) {
+      return c.json({ message: "poolId required" }, 400);
+    }
+
+    // Find all bots in this pool
+    const poolBots = await db
+      .select({ id: bots.id })
+      .from(bots)
+      .where(and(eq(bots.poolId, poolId), eq(bots.status, "active")));
+
+    if (poolBots.length === 0) {
+      return c.json({ synced: 0 });
+    }
+
+    const botIds = poolBots.map((b) => b.id);
+    let totalSynced = 0;
+
+    // Find all connected Discord channels for these bots
+    const discordChannels = await db
+      .select()
+      .from(botChannels)
+      .where(
+        and(
+          inArray(botChannels.botId, botIds),
+          eq(botChannels.channelType, "discord"),
+          eq(botChannels.status, "connected"),
+        ),
+      );
+
+    for (const ch of discordChannels) {
+      // Get bot token
+      const [tokenRow] = await db
+        .select({ encryptedValue: channelCredentials.encryptedValue })
+        .from(channelCredentials)
+        .where(
+          and(
+            eq(channelCredentials.botChannelId, ch.id),
+            eq(channelCredentials.credentialType, "botToken"),
+          ),
+        );
+
+      if (!tokenRow) continue;
+
+      let botToken: string;
+      try {
+        botToken = decrypt(tokenRow.encryptedValue);
+      } catch {
+        continue;
+      }
+
+      // Fetch guilds from Discord API
+      try {
+        const guildsResp = await fetch(
+          "https://discord.com/api/v10/users/@me/guilds",
+          { headers: { Authorization: `Bot ${botToken}` } },
+        );
+
+        if (!guildsResp.ok) {
+          console.warn(
+            `[discord-sync] Failed to fetch guilds: ${guildsResp.status}`,
+          );
+          continue;
+        }
+
+        const guilds = (await guildsResp.json()) as Array<{
+          id: string;
+          name: string;
+        }>;
+
+        const now = new Date().toISOString();
+
+        for (const guild of guilds) {
+          const sessionKey = `discord_${guild.id}`;
+          const title = guild.name;
+
+          await db
+            .insert(sessions)
+            .values({
+              id: createId(),
+              botId: ch.botId,
+              sessionKey,
+              channelType: "discord",
+              channelId: guild.id,
+              title,
+              status: "active",
+              messageCount: 0,
+              lastMessageAt: now,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .onConflictDoUpdate({
+              target: sessions.sessionKey,
+              set: {
+                botId: ch.botId,
+                title,
+                updatedAt: now,
+              },
+            });
+
+          totalSynced++;
+        }
+      } catch (err) {
+        console.error("[discord-sync] Error fetching guilds:", err);
+      }
+    }
+
+    return c.json({ synced: totalSynced });
   });
 }
 

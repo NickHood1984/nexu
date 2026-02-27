@@ -563,9 +563,9 @@ export type PostV1ChannelsSlackConnectData = {
     body?: {
         botToken: string;
         signingSecret: string;
-        teamId: string;
+        teamId?: string;
         teamName?: string;
-        appId: string;
+        appId?: string;
     };
     path?: never;
     query?: never;

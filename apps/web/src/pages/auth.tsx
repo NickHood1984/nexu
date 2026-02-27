@@ -1,19 +1,16 @@
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
-import { Github, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+
+const CAPABILITY_PILLS = [
+  { emoji: "💻", label: "Code & Deploy" },
+  { emoji: "📊", label: "Data Analysis" },
+  { emoji: "✍️", label: "Content" },
+  { emoji: "🔍", label: "Research" },
+  { emoji: "⚙️", label: "Automation" },
+];
 
 export function AuthPage() {
   const [searchParams] = useSearchParams();
@@ -28,7 +25,7 @@ export function AuthPage() {
   if (isPending) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-text-muted" />
       </div>
     );
   }
@@ -83,139 +80,229 @@ export function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">
-            {isLogin ? "Log in to Nexu" : "Create your Nexu account"}
-          </CardTitle>
-          <CardDescription>
-            {isLogin
-              ? "Welcome back"
-              : "Get your AI assistant up and running in minutes"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => handleOAuth("github")}
-            disabled={loading !== null}
-          >
-            <Github className="mr-2 h-4 w-4" />
-            {loading === "github" ? "Redirecting..." : "Continue with GitHub"}
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => handleOAuth("google")}
-            disabled={loading !== null}
-          >
-            <svg
-              className="mr-2 h-4 w-4"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-                fill="#4285F4"
-              />
-              <path
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                fill="#34A853"
-              />
-              <path
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                fill="#FBBC05"
-              />
-              <path
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                fill="#EA4335"
-              />
-            </svg>
-            {loading === "google" ? "Redirecting..." : "Continue with Google"}
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Separator />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                Or continue with email
-              </span>
-            </div>
+    <div className="flex min-h-screen">
+      {/* Left panel — dark */}
+      <div className="hidden lg:flex w-[400px] shrink-0 bg-[#111111] flex-col justify-between p-8 relative overflow-hidden">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex justify-center items-center w-7 h-7 rounded-lg bg-white/15">
+            <span className="text-xs font-bold text-white">N</span>
           </div>
+          <span className="text-[14px] font-semibold text-white/90">Nexu</span>
+        </div>
 
-          <form onSubmit={handleEmailAuth} className="space-y-3">
-            {!isLogin && (
-              <div className="space-y-1">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  placeholder="Your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+        {/* Main copy */}
+        <div>
+          <h2 className="text-[32px] font-bold text-white leading-[1.15] mb-4">
+            Your digital
+            <br />
+            coworker,
+            <br />
+            always on.
+          </h2>
+          <p className="text-[13px] text-white/45 leading-relaxed mb-6 max-w-[280px]">
+            AI avatars that live in Slack — not just chatting, but delivering
+            real results. Build apps, analyze data, write content, run
+            automations.
+          </p>
+
+          {/* Capability pills */}
+          <div className="flex flex-wrap gap-2">
+            {CAPABILITY_PILLS.map((p) => (
+              <span
+                key={p.label}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium bg-white/[0.07] text-white/60 border border-white/[0.06]"
+              >
+                <span className="text-[11px]">{p.emoji}</span>
+                {p.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-[11px] text-white/20">© 2026 Nexu by Refly</div>
+      </div>
+
+      {/* Right panel — form */}
+      <div className="flex-1 flex flex-col bg-surface-0">
+        {/* Mobile-only nav */}
+        <nav className="border-b border-border lg:hidden">
+          <div className="flex items-center px-6 h-14">
+            <Link to="/" className="flex items-center gap-2.5">
+              <div className="flex justify-center items-center w-7 h-7 rounded-lg bg-accent">
+                <span className="text-xs font-bold text-accent-fg">N</span>
+              </div>
+              <span className="text-sm font-semibold tracking-tight text-text-primary">
+                Nexu
+              </span>
+            </Link>
+          </div>
+        </nav>
+
+        <div className="flex-1 flex items-center justify-center px-6 py-16">
+          <div className="w-full max-w-[360px]">
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-[22px] font-bold text-text-primary mb-1.5">
+                {isLogin ? "Welcome back" : "Create your account"}
+              </h1>
+              <p className="text-[14px] text-text-muted">
+                {isLogin
+                  ? "Log in to your digital clone"
+                  : "Sign up to get your Nexu digital clone"}
+              </p>
+            </div>
+
+            {/* OAuth buttons */}
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => handleOAuth("google")}
+                disabled={loading !== null}
+                className="w-full flex items-center justify-center gap-2.5 py-3 rounded-lg text-[14px] font-medium bg-[#111111] text-white hover:bg-[#222222] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading === "google" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                      />
+                    </svg>
+                    Continue with Google
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOAuth("github")}
+                disabled={loading !== null}
+                className="w-full flex items-center justify-center gap-2.5 py-3 rounded-lg text-[14px] font-medium border border-border bg-surface-1 text-text-primary hover:bg-surface-2 hover:border-border-hover transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading === "github" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                    </svg>
+                    Continue with GitHub
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-[12px]">
+                <span className="bg-surface-0 px-3 text-text-muted">
+                  or
+                </span>
+              </div>
+            </div>
+
+            {/* Email form */}
+            <form onSubmit={handleEmailAuth} className="space-y-3">
+              {!isLogin && (
+                <div className="space-y-1.5">
+                  <label className="text-[12px] text-text-secondary font-medium">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3 py-2.5 text-[13px] rounded-lg border border-border bg-surface-1 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all"
+                  />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="text-[12px] text-text-secondary font-medium">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full px-3 py-2.5 text-[13px] rounded-lg border border-border bg-surface-1 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all"
                 />
               </div>
-            )}
-            <div className="space-y-1">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Min 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-            </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading !== null}
-            >
-              {loading === "email" && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              {isLogin ? "Log in" : "Create account"}
-            </Button>
-          </form>
+              <div className="space-y-1.5">
+                <label className="text-[12px] text-text-secondary font-medium">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="Min 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  className="w-full px-3 py-2.5 text-[13px] rounded-lg border border-border bg-surface-1 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading !== null}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-[14px] font-medium bg-accent text-accent-fg hover:bg-accent-hover transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading === "email" && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                {isLogin ? "Log in" : "Create account"}
+              </button>
+            </form>
 
-          <p className="text-center text-sm text-muted-foreground">
-            {isLogin ? (
-              <>
-                Don&apos;t have an account?{" "}
-                <Link to="/auth" className="text-primary hover:underline">
-                  Sign up
-                </Link>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <Link
-                  to="/auth?mode=login"
-                  className="text-primary hover:underline"
-                >
-                  Log in
-                </Link>
-              </>
-            )}
-          </p>
-        </CardContent>
-      </Card>
+            {/* Toggle mode */}
+            <div className="text-center mt-6">
+              <span className="text-[13px] text-text-muted">
+                {isLogin
+                  ? "Don't have an account?"
+                  : "Already have an account?"}
+              </span>
+              <Link
+                to={isLogin ? "/auth" : "/auth?mode=login"}
+                className="text-[13px] text-accent font-medium ml-1 hover:underline underline-offset-2"
+              >
+                {isLogin ? "Sign up" : "Log in"}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

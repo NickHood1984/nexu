@@ -275,12 +275,80 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
     const userId = c.get("userId");
     const input = c.req.valid("json");
 
+    // Auto-resolve teamId/appId from bot token via auth.test
+    let teamId = input.teamId;
+    let appId = input.appId;
+    let teamName = input.teamName;
+
+    if (!teamId || !appId) {
+      const authResp = await fetch("https://slack.com/api/auth.test", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${input.botToken}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      });
+      const authData = (await authResp.json()) as {
+        ok: boolean;
+        team_id?: string;
+        team?: string;
+        bot_id?: string;
+        user_id?: string;
+        error?: string;
+      };
+      if (!authData.ok) {
+        return c.json(
+          {
+            message: `Invalid bot token: ${authData.error ?? "auth.test failed"}`,
+          },
+          409,
+        );
+      }
+      if (!authData.team_id) {
+        return c.json(
+          { message: "Could not resolve team_id from bot token" },
+          409,
+        );
+      }
+      teamId = teamId || authData.team_id;
+      teamName = teamName || authData.team || undefined;
+
+      // auth.test returns bot_id but not app_id; use bots.info to resolve the real app_id
+      // (app_id must match api_app_id in Slack event payloads for webhook route lookup)
+      if (!appId && authData.bot_id) {
+        const botsResp = await fetch(
+          `https://slack.com/api/bots.info?bot=${authData.bot_id}`,
+          {
+            headers: { Authorization: `Bearer ${input.botToken}` },
+          },
+        );
+        const botsData = (await botsResp.json()) as {
+          ok: boolean;
+          bot?: { app_id?: string };
+        };
+        if (botsData.ok && botsData.bot?.app_id) {
+          appId = botsData.bot.app_id;
+        }
+      }
+
+      if (!appId) {
+        return c.json(
+          {
+            message:
+              "Could not resolve app_id from bot token. Please provide it manually from your Slack App's Basic Information page.",
+          },
+          409,
+        );
+      }
+    }
+
     const bot = await findOrCreateDefaultBot(userId);
     const botId = bot.id;
 
-    const accountId = `slack-${input.appId}`;
-    const slackExternalId = `${input.teamId}:${input.appId}`;
+    const accountId = `slack-${appId}`;
+    const slackExternalId = `${teamId}:${appId}`;
 
+    // Check if this Slack app is already connected (by externalId)
     const [globalExisting] = await db
       .select()
       .from(webhookRoutes)
@@ -291,76 +359,164 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
         ),
       );
 
-    if (globalExisting) {
+    if (globalExisting && globalExisting.botId !== botId) {
       return c.json(
-        {
-          message: "This Slack app is already connected to another bot",
-        },
+        { message: "This Slack app is already connected to another bot" },
         409,
       );
     }
 
-    const [existing] = await db
+    const now = new Date().toISOString();
+    let channelId: string;
+
+    // Clean up any stale Slack channels for this bot (e.g. old records with wrong accountId)
+    const existingChannels = await db
       .select()
       .from(botChannels)
       .where(
         and(
           eq(botChannels.botId, botId),
           eq(botChannels.channelType, "slack"),
-          eq(botChannels.accountId, accountId),
         ),
       );
 
-    if (existing) {
-      return c.json({ message: "Slack channel already connected" }, 409);
-    }
+    const existingChannel = existingChannels.find(
+      (ch) => ch.accountId === accountId,
+    );
 
-    const channelId = createId();
-    const now = new Date().toISOString();
+    if (existingChannel || globalExisting) {
+      // Reconnection — reuse existing channel or the one referenced by the webhook route
+      channelId = existingChannel?.id ?? globalExisting!.botChannelId;
 
-    await db.insert(botChannels).values({
-      id: channelId,
-      botId,
-      channelType: "slack",
-      accountId,
-      status: "connected",
-      channelConfig: JSON.stringify({
-        teamId: input.teamId,
-        teamName: input.teamName ?? null,
-        appId: input.appId,
-      }),
-      createdAt: now,
-      updatedAt: now,
-    });
+      await db
+        .update(botChannels)
+        .set({
+          status: "connected",
+          accountId,
+          channelConfig: JSON.stringify({
+            teamId,
+            teamName: teamName ?? null,
+            appId,
+          }),
+          updatedAt: now,
+        })
+        .where(eq(botChannels.id, channelId));
 
-    await db.insert(channelCredentials).values({
-      id: createId(),
-      botChannelId: channelId,
-      credentialType: "botToken",
-      encryptedValue: encrypt(input.botToken),
-      createdAt: now,
-    });
+      // Replace credentials
+      await db
+        .delete(channelCredentials)
+        .where(eq(channelCredentials.botChannelId, channelId));
 
-    await db.insert(channelCredentials).values({
-      id: createId(),
-      botChannelId: channelId,
-      credentialType: "signingSecret",
-      encryptedValue: encrypt(input.signingSecret),
-      createdAt: now,
-    });
+      await db.insert(channelCredentials).values([
+        {
+          id: createId(),
+          botChannelId: channelId,
+          credentialType: "botToken",
+          encryptedValue: encrypt(input.botToken),
+          createdAt: now,
+        },
+        {
+          id: createId(),
+          botChannelId: channelId,
+          credentialType: "signingSecret",
+          encryptedValue: encrypt(input.signingSecret),
+          createdAt: now,
+        },
+      ]);
 
-    if (bot.poolId) {
-      await db.insert(webhookRoutes).values({
-        id: createId(),
-        channelType: "slack",
-        externalId: slackExternalId,
-        poolId: bot.poolId,
-        botChannelId: channelId,
+      // Update or create webhook route with correct externalId
+      if (globalExisting) {
+        await db
+          .update(webhookRoutes)
+          .set({
+            externalId: slackExternalId,
+            poolId: bot.poolId ?? globalExisting.poolId,
+            botChannelId: channelId,
+            botId,
+            accountId,
+            updatedAt: now,
+          })
+          .where(eq(webhookRoutes.id, globalExisting.id));
+      } else if (bot.poolId) {
+        // Delete any old webhook routes for this channel, then create correct one
+        await db
+          .delete(webhookRoutes)
+          .where(eq(webhookRoutes.botChannelId, channelId));
+
+        await db.insert(webhookRoutes).values({
+          id: createId(),
+          channelType: "slack",
+          externalId: slackExternalId,
+          poolId: bot.poolId,
+          botChannelId: channelId,
+          botId,
+          accountId,
+          updatedAt: now,
+          createdAt: now,
+        });
+      }
+
+      // Clean up other stale Slack channels for the same bot (wrong accountId from bot_id era)
+      for (const stale of existingChannels) {
+        if (stale.id !== channelId) {
+          await db
+            .delete(webhookRoutes)
+            .where(eq(webhookRoutes.botChannelId, stale.id));
+          await db
+            .delete(channelCredentials)
+            .where(eq(channelCredentials.botChannelId, stale.id));
+          await db.delete(botChannels).where(eq(botChannels.id, stale.id));
+        }
+      }
+    } else {
+      // New connection
+      channelId = createId();
+
+      await db.insert(botChannels).values({
+        id: channelId,
         botId,
+        channelType: "slack",
         accountId,
-        updatedAt: now,
+        status: "connected",
+        channelConfig: JSON.stringify({
+          teamId,
+          teamName: teamName ?? null,
+          appId,
+        }),
         createdAt: now,
+        updatedAt: now,
       });
+
+      await db.insert(channelCredentials).values([
+        {
+          id: createId(),
+          botChannelId: channelId,
+          credentialType: "botToken",
+          encryptedValue: encrypt(input.botToken),
+          createdAt: now,
+        },
+        {
+          id: createId(),
+          botChannelId: channelId,
+          credentialType: "signingSecret",
+          encryptedValue: encrypt(input.signingSecret),
+          createdAt: now,
+        },
+      ]);
+
+      if (bot.poolId) {
+        await db.insert(webhookRoutes).values({
+          id: createId(),
+          channelType: "slack",
+          externalId: slackExternalId,
+          poolId: bot.poolId,
+          botChannelId: channelId,
+          botId,
+          accountId,
+          updatedAt: now,
+          createdAt: now,
+        });
+      }
     }
 
     await publishSnapshotSafely(bot.poolId, bot.id);

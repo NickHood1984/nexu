@@ -1,27 +1,43 @@
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ChevronLeft,
-  ChevronRight,
+  ChevronUp,
   LogOut,
-  MessageCircle,
+  MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
+  Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import "@/lib/api";
-import { getV1Bots, getV1Sessions } from "../../lib/api/sdk.gen";
+import { getV1Sessions } from "../../lib/api/sdk.gen";
 
-const CHANNEL_ICONS: Record<string, string> = {
-  slack: "\uD83D\uDCAC",
-  discord: "\uD83C\uDFAE",
-  telegram: "\u2708\uFE0F",
-  web: "\uD83C\uDF10",
-  whatsapp: "\uD83D\uDCF1",
+type Platform = "slack" | "discord" | "whatsapp" | "telegram" | "web";
+
+const PLATFORM_ICON_CONFIG: Record<Platform, { bg: string; emoji: string }> = {
+  discord: { bg: "bg-indigo-500/15", emoji: "🎮" },
+  slack: { bg: "bg-purple-500/15", emoji: "#" },
+  whatsapp: { bg: "bg-emerald-500/15", emoji: "💬" },
+  telegram: { bg: "bg-blue-500/15", emoji: "✈️" },
+  web: { bg: "bg-gray-500/15", emoji: "🌐" },
 };
+
+function SidebarPlatformIcon({ platform }: { platform: string }) {
+  const config = PLATFORM_ICON_CONFIG[platform as Platform] ?? {
+    bg: "bg-gray-500/15",
+    emoji: "💬",
+  };
+  return (
+    <div
+      className={`flex justify-center items-center w-6 h-6 rounded-md shrink-0 ${config.bg}`}
+    >
+      <span className="text-[11px]">{config.emoji}</span>
+    </div>
+  );
+}
 
 function formatTime(iso: string | null): string {
   if (!iso) return "";
@@ -29,233 +45,370 @@ function formatTime(iso: string | null): string {
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return "刚刚";
+  if (diffMin < 60) return `${diffMin} 分钟前`;
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffHr < 24) return `${diffHr} 小时前`;
   const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
+  if (diffDay < 7) return `${diffDay} 天前`;
   return d.toLocaleDateString();
+}
+
+function EmptyState({ onGoConfig }: { onGoConfig: () => void }) {
+  return (
+    <div className="flex flex-col justify-center items-center h-full px-8">
+      <div className="max-w-md text-center">
+        <div className="flex justify-center items-center mx-auto mb-6 w-16 h-16 rounded-2xl bg-accent/10">
+          <MessageSquare size={28} className="text-accent" />
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-text-primary">
+          还没有对话
+        </h2>
+        <p className="mb-6 text-sm leading-relaxed text-text-muted">
+          先配置好平台 Bot，然后在 Slack / Discord / 飞书 里 @Nexu
+          或私聊龙虾 🦞，对话就会自动出现在这里。
+        </p>
+        <div className="flex flex-col gap-3 items-center">
+          <button
+            type="button"
+            onClick={onGoConfig}
+            className="flex gap-2 items-center px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-colors bg-accent hover:bg-accent-hover"
+          >
+            <Settings size={14} /> 去配置 Bot
+          </button>
+          <div className="flex gap-4 mt-2">
+            {[
+              { step: "1", text: "配置平台 Bot" },
+              { step: "2", text: "在 IM 里 @Nexu" },
+              { step: "3", text: "对话自动出现" },
+            ].map((s, i) => (
+              <div
+                key={s.step}
+                className="flex gap-1.5 items-center text-[12px] text-text-muted"
+              >
+                {i > 0 && <span className="text-border mr-1">→</span>}
+                <span className="flex justify-center items-center w-4 h-4 rounded-full bg-accent/10 text-[10px] font-semibold text-accent">
+                  {s.step}
+                </span>
+                {s.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function WorkspaceLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const logoutRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
 
-  const { data: botsData } = useQuery({
-    queryKey: ["bots"],
-    queryFn: async () => {
-      const { data } = await getV1Bots();
-      return data;
-    },
-  });
-
-  const botId = botsData?.bots?.[0]?.id;
+  useEffect(() => {
+    if (!showLogoutConfirm) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        logoutRef.current &&
+        !logoutRef.current.contains(e.target as Node)
+      ) {
+        setShowLogoutConfirm(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showLogoutConfirm]);
 
   const { data: sessionsData } = useQuery({
-    queryKey: ["sessions", botId],
+    queryKey: ["sessions"],
     queryFn: async () => {
       const { data } = await getV1Sessions({
-        query: { botId, limit: 100 },
+        query: { limit: 100 },
       });
       return data;
     },
-    enabled: !!botId,
     refetchInterval: 5000,
   });
 
   const sessions = sessionsData?.sessions ?? [];
 
-  // Extract selected session ID from URL
   const sessionMatch = location.pathname.match(/\/workspace\/sessions\/(.+)/);
   const selectedSessionId = sessionMatch?.[1] ?? null;
+  const isChannelsPage = location.pathname.includes("/channels");
 
   const handleLogout = async () => {
+    setShowLogoutConfirm(false);
     await authClient.signOut();
     window.location.href = "/";
   };
 
+  const userEmail = session?.user?.email ?? "";
+  const userInitial = (userEmail[0] ?? "U").toUpperCase();
+
+  const showEmptyState =
+    sessions.length === 0 &&
+    !isChannelsPage &&
+    !selectedSessionId;
+
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen">
       {/* Sidebar */}
-      <aside
+      <div
         className={cn(
-          "flex flex-col border-r bg-muted/30 transition-all",
-          collapsed ? "w-16" : "w-64",
+          "flex flex-col shrink-0 border-r border-border bg-surface-1 transition-all duration-200",
+          collapsed ? "w-14" : "w-56",
         )}
       >
-        {/* Logo */}
-        <div className="flex h-14 items-center justify-between border-b px-4">
-          {!collapsed && (
-            <Link to="/" className="text-lg font-bold">
-              Nexu
-            </Link>
+        {/* Header */}
+        <div
+          className={cn(
+            "flex items-center border-b border-border",
+            collapsed
+              ? "px-2 py-3 justify-center"
+              : "px-4 py-3 gap-2.5",
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-
-        {/* Sessions */}
-        <div className="flex-1 overflow-y-auto p-2">
-          {!collapsed && (
-            <p className="mb-2 px-2 text-xs font-medium uppercase text-muted-foreground">
-              Sessions
-            </p>
-          )}
-          {sessions.length === 0 && !collapsed && (
-            <p className="px-2 text-sm text-muted-foreground">
-              No sessions yet
-            </p>
-          )}
-          {sessions.map((s) => {
-            const isActive = selectedSessionId === s.id;
-            const channelIcon =
-              s.channelType && CHANNEL_ICONS[s.channelType]
-                ? CHANNEL_ICONS[s.channelType]
-                : null;
-
-            return (
+        >
+          {collapsed ? (
+            <div className="relative group">
+              <div className="flex justify-center items-center w-7 h-7 rounded-lg bg-accent transition-opacity group-hover:opacity-0">
+                <span className="text-xs font-bold text-accent-fg">N</span>
+              </div>
               <button
                 type="button"
-                key={s.id}
-                onClick={() => navigate(`/workspace/sessions/${s.id}`)}
-                className={cn(
-                  "w-full rounded-md px-2 py-1.5 text-left transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-accent",
-                )}
+                onClick={() => setCollapsed(false)}
+                className="absolute inset-0 flex justify-center items-center w-7 h-7 rounded-lg opacity-0 transition-opacity bg-surface-3 text-text-primary group-hover:opacity-100"
+                title="展开侧边栏"
               >
-                {collapsed ? (
-                  <MessageCircle className="mx-auto h-4 w-4" />
-                ) : (
-                  <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className={cn(
-                          "truncate text-sm font-medium",
-                          !isActive && "text-foreground",
-                        )}
-                      >
-                        {s.title}
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-1.5">
-                        <span
-                          className={cn(
-                            "text-xs",
-                            isActive
-                              ? "text-primary-foreground/70"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          {formatTime(s.lastMessageAt || s.updatedAt)}
-                        </span>
-                        {channelIcon && (
-                          <>
-                            <span
-                              className={cn(
-                                "text-xs",
-                                isActive
-                                  ? "text-primary-foreground/50"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              ·
-                            </span>
-                            <span
-                              className="text-xs"
-                              title={s.channelType ?? ""}
-                            >
-                              {channelIcon}
-                            </span>
-                          </>
-                        )}
-                        {(s.messageCount ?? 0) > 0 && (
-                          <>
-                            <span
-                              className={cn(
-                                "text-xs",
-                                isActive
-                                  ? "text-primary-foreground/50"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              ·
-                            </span>
-                            <span
-                              className={cn(
-                                "font-mono text-xs",
-                                isActive
-                                  ? "text-primary-foreground/70"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              {s.messageCount} msgs
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <span
-                      className={cn(
-                        "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                        s.status === "active"
-                          ? "bg-emerald-500"
-                          : "bg-gray-300",
-                      )}
-                    />
-                  </div>
-                )}
+                <PanelLeftOpen size={14} />
               </button>
-            );
-          })}
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-center items-center w-7 h-7 rounded-lg bg-accent shrink-0">
+                <span className="text-xs font-bold text-accent-fg">N</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-text-primary">
+                  Nexu <span className="text-[11px]">🦞</span>
+                </div>
+                <div className="text-[10px] text-text-tertiary">
+                  你的赛博办公室
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="p-1.5 rounded-lg transition-colors text-text-muted hover:text-text-primary hover:bg-surface-3 shrink-0"
+                title="收起侧边栏"
+              >
+                <PanelLeftClose size={14} />
+              </button>
+            </>
+          )}
         </div>
 
-        <Separator />
+        {/* Session list */}
+        <div className="flex-1 overflow-y-auto">
+          {!collapsed && (
+            <div className="px-3 pt-3 mb-2">
+              <div className="text-[10px] font-medium text-text-muted uppercase tracking-wider px-1">
+                对话 ({sessions.length})
+              </div>
+            </div>
+          )}
 
-        {/* Nav */}
-        <nav className="p-2">
-          <Link
-            to="/workspace/channels"
+          {sessions.length > 0 ? (
+            <div
+              className={cn(
+                "space-y-0.5 pb-3",
+                collapsed ? "px-2" : "px-3",
+              )}
+            >
+              {sessions.map((s) => {
+                const isActive = selectedSessionId === s.id;
+                return (
+                  <button
+                    type="button"
+                    key={s.id}
+                    onClick={() =>
+                      navigate(`/workspace/sessions/${s.id}`)
+                    }
+                    title={collapsed ? (s.title ?? undefined) : undefined}
+                    className={cn(
+                      "flex items-center gap-2.5 w-full rounded-lg transition-colors cursor-pointer",
+                      collapsed
+                        ? "justify-center p-2"
+                        : "px-2.5 py-2 text-left",
+                      isActive
+                        ? "bg-accent/10 text-accent"
+                        : "text-text-secondary hover:text-text-primary hover:bg-surface-3",
+                    )}
+                  >
+                    {collapsed ? (
+                      <SidebarPlatformIcon
+                        platform={s.channelType ?? "web"}
+                      />
+                    ) : (
+                      <>
+                        <SidebarPlatformIcon
+                          platform={s.channelType ?? "web"}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] truncate font-medium">
+                            {s.title}
+                          </div>
+                          <div className="text-[10px] text-text-muted truncate">
+                            {formatTime(
+                              s.lastMessageAt || s.updatedAt,
+                            )}
+                            {s.channelType && ` · ${s.channelType}`}
+                          </div>
+                        </div>
+                        <div
+                          className={cn(
+                            "w-1.5 h-1.5 rounded-full shrink-0",
+                            s.status === "active"
+                              ? "bg-emerald-500"
+                              : "bg-text-muted/30",
+                          )}
+                        />
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : !collapsed ? (
+            <div className="px-4 py-6 text-center">
+              <div className="flex justify-center items-center mx-auto mb-2 w-8 h-8 rounded-lg bg-accent/10">
+                <Zap size={14} className="text-accent" />
+              </div>
+              <p className="text-[12px] text-text-muted leading-relaxed">
+                配置好 Bot 后，在 IM 里跟 🦞 对话就会出现在这里
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/workspace/channels")}
+                className="mt-3 text-[12px] text-accent font-medium hover:underline"
+              >
+                去配置 →
+              </button>
+            </div>
+          ) : null}
+
+          {/* Channel config entry */}
+          <div className={cn(collapsed ? "px-2" : "px-3", "pb-3")}>
+            <div className="border-t border-border pt-2" />
+            <Link
+              to="/workspace/channels"
+              title={collapsed ? "Channel 配置" : undefined}
+              className={cn(
+                "flex items-center gap-2 w-full rounded-lg text-[12px] font-medium transition-colors cursor-pointer mt-1",
+                collapsed ? "justify-center p-2" : "px-3 py-2",
+                isChannelsPage
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-muted hover:text-text-primary hover:bg-surface-3",
+              )}
+            >
+              <Settings size={14} />
+              {!collapsed && "Channel 配置"}
+            </Link>
+          </div>
+        </div>
+
+        {/* Account */}
+        <div className="relative" ref={logoutRef}>
+          {showLogoutConfirm && (
+            <div
+              className={cn(
+                "absolute z-20",
+                collapsed
+                  ? "bottom-full left-1/2 -translate-x-1/2 mb-2 w-52"
+                  : "bottom-full left-1.5 right-1.5 mb-2",
+              )}
+            >
+              <div className="rounded-xl border bg-surface-1 border-border shadow-xl shadow-black/10 overflow-hidden">
+                <div className="px-3.5 py-3 border-b border-border">
+                  <div className="text-[12px] font-medium text-text-primary truncate">
+                    {userEmail}
+                  </div>
+                </div>
+                <div className="p-1.5">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-[12px] font-medium text-text-muted hover:text-red-500 hover:bg-red-500/5 transition-all cursor-pointer"
+                  >
+                    <LogOut size={13} />
+                    退出登录
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div
             className={cn(
-              "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent",
-              location.pathname.includes("/channels") && "bg-accent",
+              "border-t border-border",
+              collapsed ? "px-2 py-2.5" : "px-2 py-2",
             )}
           >
-            <Settings className="h-4 w-4" />
-            {!collapsed && "Channel Config"}
-          </Link>
-        </nav>
-
-        <Separator />
-
-        {/* User */}
-        <div className="flex items-center gap-2 p-3">
-          {!collapsed && (
-            <span className="flex-1 truncate text-sm text-muted-foreground">
-              {session?.user?.email}
-            </span>
-          )}
-          <Button variant="ghost" size="icon" onClick={handleLogout}>
-            <LogOut className="h-4 w-4" />
-          </Button>
+            {collapsed ? (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowLogoutConfirm(!showLogoutConfirm)
+                  }
+                  className="group"
+                  title={userEmail}
+                >
+                  <div className="flex justify-center items-center w-8 h-8 rounded-lg bg-gradient-to-br from-accent/20 to-accent/5 text-[11px] font-bold text-accent ring-1 ring-accent/10 transition-all group-hover:ring-accent/25">
+                    {userInitial}
+                  </div>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  setShowLogoutConfirm(!showLogoutConfirm)
+                }
+                className="flex gap-2.5 items-center w-full px-2 py-2 rounded-lg transition-all hover:bg-surface-3 cursor-pointer"
+              >
+                <div className="flex justify-center items-center w-7 h-7 rounded-md bg-gradient-to-br from-accent/20 to-accent/5 text-[10px] font-bold text-accent ring-1 ring-accent/10 shrink-0">
+                  {userInitial}
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="text-[12px] text-text-primary truncate font-medium">
+                    {userEmail}
+                  </div>
+                </div>
+                <ChevronUp
+                  size={12}
+                  className={cn(
+                    "text-text-muted/50 shrink-0 transition-transform duration-150",
+                    showLogoutConfirm ? "rotate-0" : "rotate-180",
+                  )}
+                />
+              </button>
+            )}
+          </div>
         </div>
-      </aside>
+      </div>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto p-6">
-        <Outlet />
+      <main className="flex-1 overflow-y-auto min-h-0 bg-surface-0">
+        {showEmptyState ? (
+          <EmptyState
+            onGoConfig={() => navigate("/workspace/channels")}
+          />
+        ) : (
+          <Outlet />
+        )}
       </main>
     </div>
   );

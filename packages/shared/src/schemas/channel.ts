@@ -12,9 +12,9 @@ export const channelStatusSchema = z.enum([
 export const connectSlackSchema = z.object({
   botToken: z.string().min(1),
   signingSecret: z.string().min(1),
-  teamId: z.string().min(1),
+  teamId: z.string().optional(),
   teamName: z.string().optional(),
-  appId: z.string().min(1),
+  appId: z.string().optional(),
 });
 
 export const connectDiscordSchema = z.object({

@@ -1,4 +1,4 @@
-import { sendHeartbeat } from "./api.js";
+import { sendHeartbeat, syncDiscordSessions } from "./api.js";
 import { pollLatestConfig } from "./config.js";
 import { env } from "./env.js";
 import {
@@ -44,6 +44,24 @@ export async function runHeartbeatLoop(state: RuntimeState): Promise<never> {
     }
 
     await sleep(env.RUNTIME_HEARTBEAT_INTERVAL_MS);
+  }
+}
+
+export async function runDiscordSessionSyncLoop(): Promise<never> {
+  // Initial delay to let the gateway stabilize
+  await sleep(5000);
+
+  for (;;) {
+    try {
+      await syncDiscordSessions();
+    } catch (error) {
+      log("discord session sync failed", {
+        error: error instanceof Error ? error.message : "unknown_error",
+      });
+    }
+
+    // Sync every 30 seconds
+    await sleep(30000);
   }
 }
 

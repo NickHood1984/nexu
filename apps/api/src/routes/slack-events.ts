@@ -251,6 +251,7 @@ export function registerSlackEvents(app: OpenAPIHono<AppBindings>) {
           .onConflictDoUpdate({
             target: sessions.sessionKey,
             set: {
+              botId: channel.botId,
               title,
               messageCount: sql`${sessions.messageCount} + 1`,
               lastMessageAt: now,
