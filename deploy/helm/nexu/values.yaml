@@ -13,6 +13,7 @@ config:
   NODE_ENV: "production"
   WEB_URL: "https://nexu.example.com"
   BETTER_AUTH_URL: "https://api.nexu.example.com"
+  DEFAULT_MODEL_ID: "anthropic/claude-sonnet-4"
   RUNTIME_MANAGE_OPENCLAW_PROCESS: "true"
   EMAIL_SENDER: "Nexu <noreply@nexu.io>"
 
@@ -27,6 +28,8 @@ secret:
   SLACK_CLIENT_ID: ""
   SLACK_CLIENT_SECRET: ""
   SLACK_SIGNING_SECRET: ""
+  GOOGLE_CLIENT_ID: ""
+  GOOGLE_CLIENT_SECRET: ""
   LITELLM_BASE_URL: ""
   LITELLM_API_KEY: ""
   RESEND_API_KEY: ""

@@ -41,6 +41,7 @@ pnpm generate-types                   # OpenAPI spec → frontend SDK
 - Do not add dependencies without explicit approval.
 - Do not modify OpenClaw source code.
 - Never commit code changes until explicitly told to do so.
+- Whenever you add a new environment variable, update `deploy/helm/nexu/values.yaml` in the same change.
 
 ## Required checks
 
