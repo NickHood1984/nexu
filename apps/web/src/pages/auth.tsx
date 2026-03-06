@@ -339,7 +339,7 @@ export function AuthPage() {
         {/* Right panel — OTP form */}
         <div className="flex-1 flex flex-col bg-surface-0">
           <nav className="border-b border-border lg:hidden">
-            <div className="flex items-center px-6 h-14">
+            <div className="flex items-center px-4 sm:px-6 h-14">
               <Link to="/" className="flex items-center gap-2.5">
                 <div className="flex justify-center items-center w-7 h-7 rounded-lg bg-accent">
                   <span className="text-xs font-bold text-accent-fg">N</span>
@@ -351,7 +351,7 @@ export function AuthPage() {
             </div>
           </nav>
 
-          <div className="flex-1 flex items-center justify-center px-6 py-16">
+          <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8 sm:py-12">
             <div className="w-full max-w-[360px]">
               <div className="mb-8 text-center">
                 <h1 className="text-[22px] font-bold text-text-primary mb-1.5">
@@ -412,7 +412,10 @@ export function AuthPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3 px-6 py-4 text-[11px] text-text-muted">
+          <div
+            className="flex items-center justify-center gap-3 px-4 sm:px-6 pt-3 pb-4 text-[11px] text-text-muted"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
             <a
               href="/terms"
               target="_blank"
@@ -489,7 +492,7 @@ export function AuthPage() {
       <div className="flex-1 flex flex-col bg-surface-0">
         {/* Mobile-only nav */}
         <nav className="border-b border-border lg:hidden">
-          <div className="flex items-center px-6 h-14">
+          <div className="flex items-center px-4 sm:px-6 h-14">
             <Link to="/" className="flex items-center gap-2.5">
               <div className="flex justify-center items-center w-7 h-7 rounded-lg bg-accent">
                 <span className="text-xs font-bold text-accent-fg">N</span>
@@ -501,7 +504,7 @@ export function AuthPage() {
           </div>
         </nav>
 
-        <div className="flex-1 flex items-center justify-center px-6 py-16">
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8 sm:py-12">
           <div className="w-full max-w-[360px]">
             {/* Header */}
             <div className="mb-8">
@@ -651,7 +654,10 @@ export function AuthPage() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-center gap-3 px-6 py-4 text-[11px] text-text-muted">
+        <div
+          className="flex items-center justify-center gap-3 px-4 sm:px-6 pt-3 pb-4 text-[11px] text-text-muted"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
           <a
             href="/terms"
             target="_blank"

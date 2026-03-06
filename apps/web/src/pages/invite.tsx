@@ -143,7 +143,7 @@ export function InvitePage() {
       {/* Right panel — form */}
       <div className="flex-1 flex flex-col bg-surface-0">
         <nav>
-          <div className="flex items-center justify-between px-6 h-14">
+          <div className="flex items-center justify-between px-4 sm:px-6 h-14">
             <Link to="/" className="flex items-center gap-2.5 lg:invisible">
               <div className="flex justify-center items-center w-7 h-7 rounded-lg bg-accent">
                 <span className="text-xs font-bold text-accent-fg">N</span>
@@ -166,7 +166,7 @@ export function InvitePage() {
           </div>
         </nav>
 
-        <div className="flex-1 flex items-center justify-center px-6 py-16">
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8 sm:py-12">
           <div className="w-full max-w-[360px]">
             {success ? (
               <div className="text-center">
@@ -273,7 +273,10 @@ export function InvitePage() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-center gap-3 px-6 py-4 text-[11px] text-text-muted">
+        <div
+          className="flex items-center justify-center gap-3 px-4 sm:px-6 pt-3 pb-4 text-[11px] text-text-muted"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
           <a
             href="/terms"
             target="_blank"

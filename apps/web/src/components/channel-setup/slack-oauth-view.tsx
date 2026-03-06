@@ -220,7 +220,7 @@ export function SlackOAuthView({
   if (phase === "install") {
     return (
       <div className={wrapperClass}>
-        <div className="p-8 rounded-xl border bg-surface-1 border-border text-center">
+        <div className="p-6 sm:p-8 rounded-xl border bg-surface-1 border-border text-center">
           <div className="flex justify-center items-center w-12 h-12 rounded-xl bg-[#4A154B]/10 mx-auto mb-5">
             <svg
               width="24"
@@ -273,7 +273,7 @@ export function SlackOAuthView({
   if (phase === "authorizing") {
     return (
       <div className={wrapperClass}>
-        <div className="p-8 rounded-xl border bg-surface-1 border-border text-center">
+        <div className="p-6 sm:p-8 rounded-xl border bg-surface-1 border-border text-center">
           <div className="flex justify-center items-center w-12 h-12 rounded-xl bg-[#4A154B]/10 mx-auto mb-5">
             <div className="w-5 h-5 border-2 border-[#4A154B]/30 border-t-[#4A154B] rounded-full animate-spin" />
           </div>
@@ -329,7 +329,7 @@ export function SlackOAuthView({
       </div>
 
       {/* Step indicator */}
-      <div className="grid grid-cols-3 gap-2 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6">
         {SLACK_MANUAL_STEPS.map((s, i) => (
           <button
             type="button"

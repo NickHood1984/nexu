@@ -80,7 +80,7 @@ export function DiscordSetupView({
   return (
     <div className={variant === "modal" ? "" : "max-w-2xl"}>
       {/* Step indicator */}
-      <div className="grid grid-cols-4 gap-2 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
         {DISCORD_SETUP_STEPS.map((s, i) => (
           <button
             type="button"
@@ -283,7 +283,7 @@ export function DiscordSetupView({
                   Bot Permissions
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-3.5">
                 {DISCORD_BOT_PERMISSIONS.map((perm) => (
                   <div key={perm} className="flex gap-1.5 items-center">
                     <CheckCircle2

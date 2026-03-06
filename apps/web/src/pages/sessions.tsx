@@ -145,9 +145,9 @@ export function SessionsPage() {
   );
 
   return (
-    <div className="p-8 mx-auto max-w-5xl">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 md:p-8 mx-auto max-w-5xl">
       {/* Header */}
-      <div className="flex gap-3 items-center mb-6">
+      <div className="flex gap-3 items-start sm:items-center mb-5 sm:mb-6">
         <div
           className={`flex justify-center items-center rounded-lg ${platformCfg.bg}`}
           style={{ width: 32, height: 32 }}
@@ -220,7 +220,7 @@ export function SessionsPage() {
                   return (
                     <div
                       key={d.id}
-                      className="flex gap-4 items-center px-5 py-3.5 border-b border-border last:border-0"
+                      className="flex flex-wrap items-start gap-3 px-4 py-3.5 border-b border-border last:border-0 sm:flex-nowrap sm:items-center sm:gap-4 sm:px-5"
                     >
                       <Icon size={14} className={iconColor} />
                       <div className="flex-1 min-w-0">

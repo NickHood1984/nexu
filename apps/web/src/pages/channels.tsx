@@ -88,7 +88,7 @@ export function ChannelsPage() {
   };
 
   return (
-    <div className="p-8 mx-auto max-w-4xl">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 md:p-8 mx-auto max-w-4xl">
       {/* Page header */}
       <div className="mb-6">
         <h1 className="text-lg font-bold text-text-primary">Channels</h1>
@@ -99,7 +99,7 @@ export function ChannelsPage() {
       </div>
 
       {/* Platform selector */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         {PLATFORMS.map((p) => {
           const isActive = platform === p.id;
           const connected = channels.some((ch) => ch.channelType === p.id);
@@ -142,7 +142,7 @@ export function ChannelsPage() {
       </div>
 
       {/* Coming soon */}
-      <div className="flex gap-1.5 items-center mb-6 text-[11px] text-text-muted">
+      <div className="flex gap-1.5 items-center mb-6 text-[11px] text-text-muted flex-wrap">
         <Zap size={10} className="text-accent" />
         Telegram, Microsoft Teams, Line and more coming soon
       </div>
@@ -234,9 +234,9 @@ function ConfiguredView({
 
   return (
     <>
-      <div className="space-y-5 max-w-2xl">
+      <div className="space-y-4 sm:space-y-5 max-w-2xl">
         {/* Status banner */}
-        <div className="flex gap-3 items-center p-4 rounded-xl border bg-emerald-500/5 border-emerald-500/15">
+        <div className="flex flex-col items-start gap-3 p-4 rounded-xl border bg-emerald-500/5 border-emerald-500/15 sm:flex-row sm:items-center">
           <div className="flex justify-center items-center w-9 h-9 rounded-lg bg-emerald-500/10 shrink-0">
             <CheckCircle2 size={18} className="text-emerald-500" />
           </div>
@@ -453,7 +453,7 @@ function ConfiguredView({
 function WhatsAppQRView() {
   return (
     <div className="max-w-md mx-auto">
-      <div className="p-8 rounded-xl border bg-surface-1 border-border text-center">
+      <div className="p-6 sm:p-8 rounded-xl border bg-surface-1 border-border text-center">
         <div className="flex justify-center items-center w-12 h-12 rounded-xl bg-emerald-500/10 mx-auto mb-5">
           <Smartphone size={22} className="text-emerald-500" />
         </div>
