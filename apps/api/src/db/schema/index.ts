@@ -557,6 +557,7 @@ export const supportedSkills = pgTable("supported_skills", {
 // Test-only table used to validate post-merge DB migration workflow.
 export const e2eTestMigration = pgTable("e2e_test_migration", {
   id: text("id").primaryKey(),
+  probe: text("probe"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
