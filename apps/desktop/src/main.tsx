@@ -931,8 +931,13 @@ function DiagnosticsPage() {
 }
 
 function DesktopShell() {
-  const [activeSurface, setActiveSurface] = useState<DesktopSurface>("control");
-  const [chromeMode, setChromeMode] = useState<DesktopChromeMode>("full");
+  const isPackaged = window.nexuHost.bootstrap.isPackaged;
+  const [activeSurface, setActiveSurface] = useState<DesktopSurface>(
+    isPackaged ? "web" : "control",
+  );
+  const [chromeMode, setChromeMode] = useState<DesktopChromeMode>(
+    isPackaged ? "immersive" : "full",
+  );
   const [webSurfaceVersion, setWebSurfaceVersion] = useState(0);
   const [runtimeConfig, setRuntimeConfig] =
     useState<DesktopRuntimeConfig | null>(null);
@@ -941,16 +946,6 @@ function DesktopShell() {
   useEffect(() => {
     void getRuntimeConfig()
       .then(setRuntimeConfig)
-      .catch(() => null);
-
-    // In packaged builds, default to web surface in immersive mode
-    void getAppInfo()
-      .then((info) => {
-        if (!info.isDev) {
-          setActiveSurface("web");
-          setChromeMode("immersive");
-        }
-      })
       .catch(() => null);
   }, []);
 

@@ -270,6 +270,7 @@ export type HostBridge = {
 
 export type HostBootstrap = {
   sentryDsn: string | null;
+  isPackaged: boolean;
 };
 
 export type UpdateSource = "r2" | "github";

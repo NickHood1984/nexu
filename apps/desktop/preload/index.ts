@@ -23,6 +23,7 @@ const runtimeConfig = getDesktopRuntimeConfig(process.env, {
 const hostBridge: HostBridge = {
   bootstrap: {
     sentryDsn: runtimeConfig.sentryDsn,
+    isPackaged: !process.defaultApp,
   },
 
   invoke<TChannel extends HostInvokeChannel>(
