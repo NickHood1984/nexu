@@ -5,6 +5,7 @@ const md = new MarkdownIt({
   linkify: true,
   breaks: true,
 });
+md.disable("image");
 
 // Open links in new tab with safe rel attributes
 const defaultLinkOpen =

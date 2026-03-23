@@ -154,6 +154,53 @@ describe("SessionsPage", () => {
     expect(markup).toContain("&lt;script&gt;alert('xss')&lt;/script&gt;");
   });
 
+  it("does not render markdown image syntax as an img tag", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    queryClient.setQueryData(["session-meta", "sess-markdown-image"], {
+      id: "sess-markdown-image",
+      title: "Markdown image check",
+      channelType: "web",
+      messageCount: 1,
+      lastMessageAt: "2026-03-23T03:20:00.000Z",
+      metadata: {},
+    });
+    queryClient.setQueryData(["chat-history", "sess-markdown-image"], {
+      messages: [
+        {
+          id: "msg-markdown-image",
+          role: "assistant",
+          content: "![tracker](https://example.com/pixel)",
+          timestamp: new Date("2026-03-23T03:20:00.000Z").getTime(),
+          createdAt: "2026-03-23T03:20:00.000Z",
+        },
+      ],
+    });
+
+    const markup = renderToStaticMarkup(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          initialEntries={["/workspace/sessions/sess-markdown-image"]}
+        >
+          <Routes>
+            <Route path="/workspace/sessions/:id" element={<SessionsPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(markup).not.toContain('<img src="https://example.com/pixel"');
+    expect(markup).toContain(
+      '!<a href="https://example.com/pixel" target="_blank" rel="noopener noreferrer nofollow">tracker</a>',
+    );
+  });
+
   it("strips conversation metadata blocks before rendering user text", () => {
     const queryClient = new QueryClient({
       defaultOptions: {
