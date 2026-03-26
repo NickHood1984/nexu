@@ -225,4 +225,91 @@ export function registerSessionRoutes(
       );
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // Internal: Feishu interactive card
+  // ---------------------------------------------------------------------------
+  app.openapi(
+    createRoute({
+      method: "post",
+      path: "/api/internal/channels/feishu/send-card",
+      tags: ["Internal", "Channels"],
+      request: {
+        body: {
+          content: {
+            "application/json": {
+              schema: z.object({
+                botId: z.string(),
+                card: z.record(z.unknown()),
+                to: z.string(),
+                receiveIdType: z
+                  .enum(["chat_id", "open_id", "user_id", "union_id", "email"])
+                  .optional(),
+              }),
+            },
+          },
+        },
+      },
+      responses: {
+        200: {
+          content: {
+            "application/json": {
+              schema: z.object({ messageId: z.string() }).nullable(),
+            },
+          },
+          description: "Feishu card send result",
+        },
+      },
+    }),
+    async (c) => {
+      const { botId, card, to, receiveIdType } = c.req.valid("json");
+      const result = await container.sessionService.sendFeishuCard({
+        botId,
+        card,
+        to,
+        receiveIdType,
+      });
+      return c.json(result, 200);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: "post",
+      path: "/api/internal/channels/feishu/update-card",
+      tags: ["Internal", "Channels"],
+      request: {
+        body: {
+          content: {
+            "application/json": {
+              schema: z.object({
+                botId: z.string(),
+                messageId: z.string(),
+                card: z.record(z.unknown()),
+              }),
+            },
+          },
+        },
+      },
+      responses: {
+        200: {
+          content: {
+            "application/json": {
+              schema: z.object({ ok: z.boolean() }).nullable(),
+            },
+          },
+          description: "Feishu card update result",
+        },
+      },
+    }),
+    async (c) => {
+      const { botId, messageId, card } = c.req.valid("json");
+      const result = await container.sessionService.updateFeishuCard({
+        botId,
+        messageId,
+        card,
+      });
+      return c.json(result, 200);
+    },
+  );
 }

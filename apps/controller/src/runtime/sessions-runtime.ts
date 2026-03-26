@@ -1103,6 +1103,139 @@ export class SessionsRuntime {
     }
   }
 
+  /**
+   * Send an interactive Feishu card to a target.
+   * The card JSON should use schema 2.0 format with button actions.
+   * Button click values will be received as text messages by the bot.
+   */
+  async sendFeishuCard(params: {
+    botId: string;
+    card: Record<string, unknown>;
+    to: string;
+    receiveIdType?: "chat_id" | "open_id" | "user_id" | "union_id" | "email";
+  }): Promise<{ messageId: string } | null> {
+    const { botId, card, to, receiveIdType = "chat_id" } = params;
+    const credentials = await this.getFeishuCredentials(botId);
+    if (!credentials) {
+      console.error(
+        `[sendFeishuCard] credentials not found for botId=${botId}`,
+      );
+      return null;
+    }
+
+    const tenantToken = await this.getFeishuTenantToken(
+      credentials.appId,
+      credentials.appSecret,
+    );
+    if (!tenantToken) {
+      console.error(
+        `[sendFeishuCard] failed to get tenant token for botId=${botId}`,
+      );
+      return null;
+    }
+
+    try {
+      const body: Record<string, unknown> = {
+        receive_id: to,
+        msg_type: "interactive",
+        content: JSON.stringify(card),
+      };
+
+      const response = await fetch(
+        `https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${tenantToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        },
+      );
+
+      const payload = (await response.json()) as {
+        code?: number;
+        msg?: string;
+        data?: { message_id?: string };
+      };
+
+      if (!response.ok || payload.code !== 0 || !payload.data?.message_id) {
+        console.error(
+          `[sendFeishuCard] Feishu API error: status=${response.status} code=${payload.code} msg=${payload.msg}`,
+        );
+        return null;
+      }
+      return { messageId: payload.data.message_id };
+    } catch (err) {
+      console.error("[sendFeishuCard] fetch error:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Update an existing Feishu interactive card in place.
+   * Useful for one-time choice flows where the original card should be
+   * replaced after the user clicks a button.
+   */
+  async updateFeishuCard(params: {
+    botId: string;
+    messageId: string;
+    card: Record<string, unknown>;
+  }): Promise<{ ok: true } | null> {
+    const { botId, messageId, card } = params;
+    const credentials = await this.getFeishuCredentials(botId);
+    if (!credentials) {
+      console.error(
+        `[updateFeishuCard] credentials not found for botId=${botId}`,
+      );
+      return null;
+    }
+
+    const tenantToken = await this.getFeishuTenantToken(
+      credentials.appId,
+      credentials.appSecret,
+    );
+    if (!tenantToken) {
+      console.error(
+        `[updateFeishuCard] failed to get tenant token for botId=${botId}`,
+      );
+      return null;
+    }
+
+    try {
+      const response = await fetch(
+        `https://open.feishu.cn/open-apis/im/v1/messages/${messageId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${tenantToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content: JSON.stringify(card),
+          }),
+        },
+      );
+
+      const payload = (await response.json()) as {
+        code?: number;
+        msg?: string;
+      };
+
+      if (!response.ok || payload.code !== 0) {
+        console.error(
+          `[updateFeishuCard] Feishu API error: status=${response.status} code=${payload.code} msg=${payload.msg}`,
+        );
+        return null;
+      }
+
+      return { ok: true };
+    } catch (err) {
+      console.error("[updateFeishuCard] fetch error:", err);
+      return null;
+    }
+  }
+
   private readStringValue(
     record: SessionMetadataRecord | null | undefined,
     key: string,
