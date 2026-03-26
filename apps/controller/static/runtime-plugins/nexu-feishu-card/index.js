@@ -45,7 +45,7 @@ const buttonSchema = {
       type: "string",
     },
   },
-  required: ["tag", "text", "type", "value"],
+  required: ["tag", "text", "value"],
 };
 
 const textElementSchema = {
@@ -89,7 +89,7 @@ const actionElementSchema = {
 };
 
 const cardElementSchema = {
-  anyOf: [textElementSchema, actionElementSchema, dividerSchema],
+  anyOf: [textElementSchema, actionElementSchema, dividerSchema, buttonSchema],
 };
 
 const cardSchema = {
@@ -284,8 +284,56 @@ function buildCard(card) {
       wide_screen_mode: true,
     },
     header: card.header || {},
-    elements: card.elements || [],
+    elements: normalizeCardElements(card.elements || []),
   };
+}
+
+function isButtonElement(element) {
+  return Boolean(
+    element &&
+      typeof element === "object" &&
+      element.tag === "button" &&
+      element.text &&
+      typeof element.text === "object" &&
+      element.text.tag === "plain_text" &&
+      typeof element.text.content === "string" &&
+      typeof element.value === "string",
+  );
+}
+
+function wrapButtonsInAction(buttons) {
+  return {
+    tag: "action",
+    actions: buttons.map((button) => ({
+      ...button,
+      type: button.type || "default",
+    })),
+  };
+}
+
+function normalizeCardElements(elements) {
+  const normalized = [];
+  let pendingButtons = [];
+
+  for (const element of elements) {
+    if (isButtonElement(element)) {
+      pendingButtons.push(element);
+      continue;
+    }
+
+    if (pendingButtons.length > 0) {
+      normalized.push(wrapButtonsInAction(pendingButtons));
+      pendingButtons = [];
+    }
+
+    normalized.push(element);
+  }
+
+  if (pendingButtons.length > 0) {
+    normalized.push(wrapButtonsInAction(pendingButtons));
+  }
+
+  return normalized;
 }
 
 function buildChoiceCard(params) {
@@ -631,16 +679,13 @@ const plugin = {
 
 卡片元素类型：
 - text: 文本段落（tag: "plain_text" 或 "markdown"）
-- button: 按钮（点击后会将 value 作为消息发送给机器人）
+- button: 按钮。传给 build_feishu_card 或 send_feishu_card 时会自动包装进 action 区块
 - divider: 分隔线`,
         parameters: buildFeishuCardParameters,
         async execute(_toolCallId, params) {
-          const card = {
-            config: {
-              wide_screen_mode: true,
-            },
+          const card = buildCard({
             elements: params.elements || [],
-          };
+          });
 
           if (params.header_title) {
             card.header = {
@@ -654,7 +699,8 @@ const plugin = {
 
           return json({
             card,
-            usage_tip: "将返回的 card 对象传递给 send_feishu_card 工具来发送卡片",
+            usage_tip:
+              "将返回的 card 对象传递给 send_feishu_card 工具来发送卡片；原始 button 元素会自动包装为 action 区块",
           });
         },
       })),
@@ -664,7 +710,7 @@ const plugin = {
     api.registerTool(
       onlyInFeishuSession(() => ({
         name: "build_feishu_button",
-        description: "构建飞书卡片按钮元素",
+        description: "构建飞书卡片按钮元素；传给 build_feishu_card 时会自动包装进 action 区块",
         parameters: buildFeishuButtonParameters,
         async execute(_toolCallId, params) {
           return json({

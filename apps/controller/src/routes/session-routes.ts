@@ -5,7 +5,9 @@ import {
   sessionResponseSchema,
   updateSessionSchema,
 } from "@nexu/shared";
+import { HTTPException } from "hono/http-exception";
 import type { ControllerContainer } from "../app/container.js";
+import { FeishuCardDeliveryError } from "../runtime/sessions-runtime.js";
 import type { ControllerBindings } from "../types.js";
 
 const querySchema = z.object({
@@ -18,6 +20,14 @@ const querySchema = z.object({
 
 const sessionIdParamSchema = z.object({ id: z.string() });
 const errorSchema = z.object({ message: z.string() });
+
+function getRouteErrorMessage(prefix: string, error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return `${prefix}: ${error.message}`;
+  }
+
+  return prefix;
+}
 
 export function registerSessionRoutes(
   app: OpenAPIHono<ControllerBindings>,
@@ -254,22 +264,48 @@ export function registerSessionRoutes(
         200: {
           content: {
             "application/json": {
-              schema: z.object({ messageId: z.string() }).nullable(),
+              schema: z.object({ messageId: z.string() }),
             },
           },
           description: "Feishu card send result",
+        },
+        500: {
+          content: {
+            "application/json": { schema: errorSchema },
+          },
+          description: "Feishu card send failed due to internal configuration",
+        },
+        502: {
+          content: {
+            "application/json": { schema: errorSchema },
+          },
+          description: "Feishu card send failed due to upstream error",
         },
       },
     }),
     async (c) => {
       const { botId, card, to, receiveIdType } = c.req.valid("json");
-      const result = await container.sessionService.sendFeishuCard({
-        botId,
-        card,
-        to,
-        receiveIdType,
-      });
-      return c.json(result, 200);
+      try {
+        const result = await container.sessionService.sendFeishuCard({
+          botId,
+          card,
+          to,
+          receiveIdType,
+        });
+        return c.json(result, 200);
+      } catch (error) {
+        const prefix = `Failed to send Feishu card for botId=${botId} to=${to} receiveIdType=${receiveIdType ?? "chat_id"}`;
+        if (error instanceof FeishuCardDeliveryError) {
+          const message = getRouteErrorMessage(prefix, error);
+          throw new HTTPException(error.statusCode, {
+            res: c.json({ message }, error.statusCode),
+          });
+        }
+        const message = getRouteErrorMessage(prefix, error);
+        throw new HTTPException(500, {
+          res: c.json({ message }, 500),
+        });
+      }
     },
   );
 
@@ -295,21 +331,48 @@ export function registerSessionRoutes(
         200: {
           content: {
             "application/json": {
-              schema: z.object({ ok: z.boolean() }).nullable(),
+              schema: z.object({ ok: z.boolean() }),
             },
           },
           description: "Feishu card update result",
+        },
+        500: {
+          content: {
+            "application/json": { schema: errorSchema },
+          },
+          description:
+            "Feishu card update failed due to internal configuration",
+        },
+        502: {
+          content: {
+            "application/json": { schema: errorSchema },
+          },
+          description: "Feishu card update failed due to upstream error",
         },
       },
     }),
     async (c) => {
       const { botId, messageId, card } = c.req.valid("json");
-      const result = await container.sessionService.updateFeishuCard({
-        botId,
-        messageId,
-        card,
-      });
-      return c.json(result, 200);
+      try {
+        const result = await container.sessionService.updateFeishuCard({
+          botId,
+          messageId,
+          card,
+        });
+        return c.json(result, 200);
+      } catch (error) {
+        const prefix = `Failed to update Feishu card for botId=${botId} messageId=${messageId}`;
+        if (error instanceof FeishuCardDeliveryError) {
+          const message = getRouteErrorMessage(prefix, error);
+          throw new HTTPException(error.statusCode, {
+            res: c.json({ message }, error.statusCode),
+          });
+        }
+        const message = getRouteErrorMessage(prefix, error);
+        throw new HTTPException(500, {
+          res: c.json({ message }, 500),
+        });
+      }
     },
   );
 }

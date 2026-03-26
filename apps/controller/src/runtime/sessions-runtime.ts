@@ -16,6 +16,7 @@ import type {
   UpdateSessionInput,
 } from "@nexu/shared";
 import type { ControllerEnv } from "../app/env.js";
+import { logger } from "../lib/logger.js";
 
 export type ChatMessage = {
   id: string;
@@ -61,12 +62,38 @@ type ControllerConfigRecord = {
   secrets?: Record<string, string>;
 };
 
+type FeishuReceiveIdType =
+  | "chat_id"
+  | "open_id"
+  | "user_id"
+  | "union_id"
+  | "email";
+
 const UUID_LIKE_TITLE_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FEISHU_MENTION_TAGS_SYSTEM_LINE =
   /\n*\[System: The content may include mention tags in the form <at user_id="[^"]+">[^<]+<\/at>\. Treat these as real mentions of Feishu entities \(users or bots\)\.\]\s*$/u;
 const FEISHU_SELF_MENTION_SYSTEM_LINE =
   /\n*\[System: If user_id is "[^"]+", that mention refers to you\.\]\s*$/u;
+
+function describeRuntimeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+export class FeishuCardDeliveryError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string,
+    readonly context: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "FeishuCardDeliveryError";
+  }
+}
 
 function sessionMetadataPath(filePath: string): string {
   return filePath.replace(/\.jsonl$/, ".meta.json");
@@ -1112,15 +1139,22 @@ export class SessionsRuntime {
     botId: string;
     card: Record<string, unknown>;
     to: string;
-    receiveIdType?: "chat_id" | "open_id" | "user_id" | "union_id" | "email";
-  }): Promise<{ messageId: string } | null> {
+    receiveIdType?: FeishuReceiveIdType;
+  }): Promise<{ messageId: string }> {
     const { botId, card, to, receiveIdType = "chat_id" } = params;
+    const logContext = {
+      botId,
+      to,
+      receiveIdType,
+    };
     const credentials = await this.getFeishuCredentials(botId);
     if (!credentials) {
-      console.error(
-        `[sendFeishuCard] credentials not found for botId=${botId}`,
+      logger.error(logContext, "feishu_card_send_missing_credentials");
+      throw new FeishuCardDeliveryError(
+        500,
+        `sendFeishuCard failed for botId=${botId} to=${to} receiveIdType=${receiveIdType}: missing Feishu credentials`,
+        logContext,
       );
-      return null;
     }
 
     const tenantToken = await this.getFeishuTenantToken(
@@ -1128,10 +1162,12 @@ export class SessionsRuntime {
       credentials.appSecret,
     );
     if (!tenantToken) {
-      console.error(
-        `[sendFeishuCard] failed to get tenant token for botId=${botId}`,
+      logger.error(logContext, "feishu_card_send_tenant_token_failed");
+      throw new FeishuCardDeliveryError(
+        502,
+        `sendFeishuCard failed for botId=${botId} to=${to} receiveIdType=${receiveIdType}: unable to fetch tenant token`,
+        logContext,
       );
-      return null;
     }
 
     try {
@@ -1160,15 +1196,35 @@ export class SessionsRuntime {
       };
 
       if (!response.ok || payload.code !== 0 || !payload.data?.message_id) {
-        console.error(
-          `[sendFeishuCard] Feishu API error: status=${response.status} code=${payload.code} msg=${payload.msg}`,
+        const errorContext = {
+          ...logContext,
+          httpStatus: response.status,
+          payloadCode: payload.code ?? null,
+          payloadMessage: payload.msg ?? null,
+        };
+        logger.error(errorContext, "feishu_card_send_request_failed");
+        throw new FeishuCardDeliveryError(
+          502,
+          `sendFeishuCard failed for botId=${botId} to=${to} receiveIdType=${receiveIdType}: status=${response.status} code=${payload.code ?? "unknown"} msg=${payload.msg ?? "unknown"}`,
+          errorContext,
         );
-        return null;
       }
       return { messageId: payload.data.message_id };
-    } catch (err) {
-      console.error("[sendFeishuCard] fetch error:", err);
-      return null;
+    } catch (error) {
+      if (error instanceof FeishuCardDeliveryError) {
+        throw error;
+      }
+
+      const errorContext = {
+        ...logContext,
+        error: describeRuntimeError(error),
+      };
+      logger.error(errorContext, "feishu_card_send_fetch_failed");
+      throw new FeishuCardDeliveryError(
+        502,
+        `sendFeishuCard failed for botId=${botId} to=${to} receiveIdType=${receiveIdType}: ${errorContext.error}`,
+        errorContext,
+      );
     }
   }
 
@@ -1181,14 +1237,20 @@ export class SessionsRuntime {
     botId: string;
     messageId: string;
     card: Record<string, unknown>;
-  }): Promise<{ ok: true } | null> {
+  }): Promise<{ ok: true }> {
     const { botId, messageId, card } = params;
+    const logContext = {
+      botId,
+      messageId,
+    };
     const credentials = await this.getFeishuCredentials(botId);
     if (!credentials) {
-      console.error(
-        `[updateFeishuCard] credentials not found for botId=${botId}`,
+      logger.error(logContext, "feishu_card_update_missing_credentials");
+      throw new FeishuCardDeliveryError(
+        500,
+        `updateFeishuCard failed for botId=${botId} messageId=${messageId}: missing Feishu credentials`,
+        logContext,
       );
-      return null;
     }
 
     const tenantToken = await this.getFeishuTenantToken(
@@ -1196,10 +1258,12 @@ export class SessionsRuntime {
       credentials.appSecret,
     );
     if (!tenantToken) {
-      console.error(
-        `[updateFeishuCard] failed to get tenant token for botId=${botId}`,
+      logger.error(logContext, "feishu_card_update_tenant_token_failed");
+      throw new FeishuCardDeliveryError(
+        502,
+        `updateFeishuCard failed for botId=${botId} messageId=${messageId}: unable to fetch tenant token`,
+        logContext,
       );
-      return null;
     }
 
     try {
@@ -1223,16 +1287,36 @@ export class SessionsRuntime {
       };
 
       if (!response.ok || payload.code !== 0) {
-        console.error(
-          `[updateFeishuCard] Feishu API error: status=${response.status} code=${payload.code} msg=${payload.msg}`,
+        const errorContext = {
+          ...logContext,
+          httpStatus: response.status,
+          payloadCode: payload.code ?? null,
+          payloadMessage: payload.msg ?? null,
+        };
+        logger.error(errorContext, "feishu_card_update_request_failed");
+        throw new FeishuCardDeliveryError(
+          502,
+          `updateFeishuCard failed for botId=${botId} messageId=${messageId}: status=${response.status} code=${payload.code ?? "unknown"} msg=${payload.msg ?? "unknown"}`,
+          errorContext,
         );
-        return null;
       }
 
       return { ok: true };
-    } catch (err) {
-      console.error("[updateFeishuCard] fetch error:", err);
-      return null;
+    } catch (error) {
+      if (error instanceof FeishuCardDeliveryError) {
+        throw error;
+      }
+
+      const errorContext = {
+        ...logContext,
+        error: describeRuntimeError(error),
+      };
+      logger.error(errorContext, "feishu_card_update_fetch_failed");
+      throw new FeishuCardDeliveryError(
+        502,
+        `updateFeishuCard failed for botId=${botId} messageId=${messageId}: ${errorContext.error}`,
+        errorContext,
+      );
     }
   }
 

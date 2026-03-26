@@ -4752,7 +4752,6 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "nullable": true,
                   "properties": {
                     "messageId": {
                       "type": "string"
@@ -4760,6 +4759,42 @@
                   },
                   "required": [
                     "messageId"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Feishu card send failed due to internal configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Feishu card send failed due to upstream error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
                   ]
                 }
               }
@@ -4809,7 +4844,6 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "nullable": true,
                   "properties": {
                     "ok": {
                       "type": "boolean"
@@ -4817,6 +4851,42 @@
                   },
                   "required": [
                     "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Feishu card update failed due to internal configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Feishu card update failed due to upstream error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
                   ]
                 }
               }

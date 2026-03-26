@@ -226,4 +226,82 @@ describe("nexu-feishu-card plugin", () => {
       },
     });
   });
+
+  it("wraps raw button elements into an action block when building cards", async () => {
+    const buildCardTool = collectTools({
+      sessionKey: "agent:bot-1:workspace:feishu:dm:ou_test",
+    }).find((tool) => tool.name === "build_feishu_card");
+
+    expect(buildCardTool?.execute).toBeTypeOf("function");
+
+    const result = await buildCardTool?.execute?.("tool-call-2", {
+      header_title: "审批",
+      elements: [
+        {
+          tag: "markdown",
+          content: "请选择后续动作",
+        },
+        {
+          tag: "button",
+          text: {
+            tag: "plain_text",
+            content: "同意",
+          },
+          value: "approve",
+          type: "primary",
+        },
+        {
+          tag: "button",
+          text: {
+            tag: "plain_text",
+            content: "拒绝",
+          },
+          value: "reject",
+          type: "default",
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      details: {
+        card: {
+          header: {
+            title: {
+              tag: "plain_text",
+              content: "审批",
+            },
+          },
+          elements: [
+            {
+              tag: "markdown",
+              content: "请选择后续动作",
+            },
+            {
+              tag: "action",
+              actions: [
+                {
+                  tag: "button",
+                  text: {
+                    tag: "plain_text",
+                    content: "同意",
+                  },
+                  type: "primary",
+                  value: "approve",
+                },
+                {
+                  tag: "button",
+                  text: {
+                    tag: "plain_text",
+                    content: "拒绝",
+                  },
+                  type: "default",
+                  value: "reject",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+  });
 });

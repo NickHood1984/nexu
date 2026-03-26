@@ -290,4 +290,61 @@ describe("session routes", () => {
       },
     ]);
   });
+
+  it("returns non-2xx for failed Feishu card delivery operations", async () => {
+    rootDir = await mkdtemp(path.join(tmpdir(), "nexu-session-routes-"));
+    const container = createTestContainer(rootDir);
+    const app = createApp(container);
+
+    const sendResponse = await app.request(
+      "/api/internal/channels/feishu/send-card",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          botId: "bot-feishu",
+          to: "ou_missing",
+          receiveIdType: "open_id",
+          card: {
+            elements: [
+              {
+                tag: "markdown",
+                content: "hello",
+              },
+            ],
+          },
+        }),
+      },
+    );
+
+    expect(sendResponse.status).toBe(500);
+    await expect(sendResponse.json()).resolves.toMatchObject({
+      message: expect.stringContaining("botId=bot-feishu"),
+    });
+
+    const updateResponse = await app.request(
+      "/api/internal/channels/feishu/update-card",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          botId: "bot-feishu",
+          messageId: "om_missing",
+          card: {
+            elements: [
+              {
+                tag: "markdown",
+                content: "hello",
+              },
+            ],
+          },
+        }),
+      },
+    );
+
+    expect(updateResponse.status).toBe(500);
+    await expect(updateResponse.json()).resolves.toMatchObject({
+      message: expect.stringContaining("messageId=om_missing"),
+    });
+  });
 });

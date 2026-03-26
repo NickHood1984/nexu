@@ -62,7 +62,7 @@ export class SessionService {
     card: Record<string, unknown>;
     to: string;
     receiveIdType?: "chat_id" | "open_id" | "user_id" | "union_id" | "email";
-  }) {
+  }): Promise<{ messageId: string }> {
     return this.sessionsRuntime.sendFeishuCard(params);
   }
 
@@ -70,7 +70,7 @@ export class SessionService {
     botId: string;
     messageId: string;
     card: Record<string, unknown>;
-  }) {
+  }): Promise<{ ok: true }> {
     return this.sessionsRuntime.updateFeishuCard(params);
   }
 }
