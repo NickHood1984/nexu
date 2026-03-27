@@ -86,6 +86,7 @@ const MINI_MAX_MAX_POLL_INTERVAL_MS = 10000;
 const MINI_MAX_OAUTH_REQUEST_TIMEOUT_MS = 15000;
 const MINI_MAX_OAUTH_TOKEN_REQUEST_TIMEOUT_MS = 15000;
 const OPENCLAW_COMMAND_TIMEOUT_MS = 30000;
+const NEXU_OFFICIAL_PROVIDER_ID = "nexu";
 const OLLAMA_DEFAULT_BASE_URL = "http://127.0.0.1:11434";
 const OLLAMA_DUMMY_API_KEY = "ollama-local";
 
@@ -109,6 +110,34 @@ function hasSameModels(current: string[], expected: string[]): boolean {
   return (
     current.length === expected.length &&
     current.every((model, index) => model === expected[index])
+  );
+}
+
+function hasSameCloudModels(
+  current: ReadonlyArray<{
+    id: string;
+    name?: string | null;
+    provider?: string | null;
+  }>,
+  next: ReadonlyArray<{
+    id: string;
+    name?: string | null;
+    provider?: string | null;
+  }>,
+): boolean {
+  const toStableKey = (model: {
+    id: string;
+    name?: string | null;
+    provider?: string | null;
+  }): string =>
+    `${model.id}\u0000${model.name ?? ""}\u0000${model.provider ?? ""}`;
+
+  const currentKeys = current.map(toStableKey).sort();
+  const nextKeys = next.map(toStableKey).sort();
+
+  return (
+    currentKeys.length === nextKeys.length &&
+    currentKeys.every((key, index) => key === nextKeys[index])
   );
 }
 
@@ -397,6 +426,46 @@ export class ModelProviderService {
       providers: providers.filter((provider) =>
         isSupportedByokProviderId(provider.providerId),
       ),
+    };
+  }
+
+  async refreshNexuOfficialModels(): Promise<{
+    connected: boolean;
+    refreshed: boolean;
+    changed: boolean;
+    modelCount: number;
+  }> {
+    const before = await this.configStore.getDesktopCloudStatus();
+    if (!before.connected) {
+      return {
+        connected: false,
+        refreshed: false,
+        changed: false,
+        modelCount: before.models.length,
+      };
+    }
+
+    const next = await this.configStore.refreshDesktopCloudModels();
+    const changed = !hasSameCloudModels(before.models, next.models);
+
+    if (changed) {
+      await this.ensureValidDefaultModel();
+      await this.openclawSyncService.syncAll();
+      logger.info(
+        {
+          provider: NEXU_OFFICIAL_PROVIDER_ID,
+          previousModelCount: before.models.length,
+          modelCount: next.models.length,
+        },
+        "nexu_official_models_refreshed",
+      );
+    }
+
+    return {
+      connected: true,
+      refreshed: true,
+      changed,
+      modelCount: next.models.length,
     };
   }
 
